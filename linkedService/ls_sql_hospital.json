@@ -1,0 +1,17 @@
+{
+	"name": "ls_sql_hospital",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlDatabase",
+		"typeProperties": {
+			"server": "sql-ucb-server-hospital-13875987.database.windows.net",
+			"database": "dw_hospital",
+			"encrypt": "mandatory",
+			"trustServerCertificate": false,
+			"authenticationType": "SQL",
+			"userName": "Carlos",
+			"encryptedCredential": "ew0KICAiVmVyc2lvbiI6ICIyMDE3LTExLTMwIiwNCiAgIlByb3RlY3Rpb25Nb2RlIjogIktleSIsDQogICJTZWNyZXRDb250ZW50VHlwZSI6ICJQbGFpbnRleHQiLA0KICAiQ3JlZGVudGlhbElkIjogIkRBVEFGQUNUT1JZQDJCNjkyOEJCLUZBODQtNDcwNC04Qzk5LUUxMTI5MUFFQzFDQ18xYzgzOWVhMS1hODkwLTQ1YjYtOGFlMi01YTkzZmYwNGY4OGUiDQp9"
+		}
+	}
+}
