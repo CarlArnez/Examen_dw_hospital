@@ -1,0 +1,11 @@
+{
+	"name": "adf-ucb-transporte-us-13875987",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true,
+			"isExplicitlySet": false
+		}
+	},
+	"location": "canadacentral"
+}
