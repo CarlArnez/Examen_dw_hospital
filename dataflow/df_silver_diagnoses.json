@@ -9,18 +9,30 @@
 			"sources": [
 				{
 					"dataset": {
-						"referenceName": "dw_silver_diagnoses_sql",
+						"referenceName": "dw_bronze_diagnoses_sql",
 						"type": "DatasetReference"
 					},
 					"name": "source1"
 				}
 			],
-			"sinks": [],
-			"transformations": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_diagnoses_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				}
+			],
 			"scriptLines": [
 				"source(output(",
-				"          diagnosis_id as integer,",
-				"          admission_id as integer,",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
 				"          icd_code as string,",
 				"          diagnosis_description as string,",
 				"          severity as string",
@@ -28,7 +40,37 @@
 				"     allowSchemaDrift: true,",
 				"     validateSchema: false,",
 				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> source1"
+				"     query: 'SELECT d.*\\nFROM bronze.diagnoses d\\nWHERE TRY_CAST(LTRIM(RTRIM(d.admission_id)) AS INT) IN (\\n    SELECT admission_id \\n    FROM silver.admissions\\n)',",
+				"     format: 'query') ~> source1",
+				"source1 derive(diagnosis_id = toInteger(trim(toString(diagnosis_id))),",
+				"          admission_id = toInteger(trim(toString(admission_id))),",
+				"          icd_code = regexReplace(replace(upper(trim(toString(icd_code))), '-', '.'), '\\\\s*,\\\\s*', ', '),",
+				"          diagnosis_description = concat(upper(left(trim(replace(toString(diagnosis_description), ';', ',')), 1)), substring(trim(replace(toString(diagnosis_description), ';', ',')), 2), iif(endsWith(trim(toString(diagnosis_description)), '.'), '', '.')),",
+				"          severity = iif(isNull(severity) || trim(toString(severity)) == '', 'Unknown', initCap(trim(toString(severity))))) ~> derivedColumn1",
+				"derivedColumn1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_id,",
+				"          admission_id,",
+				"          icd_code,",
+				"          diagnosis_description,",
+				"          severity",
+				"     )) ~> sink1"
 			]
 		}
 	}

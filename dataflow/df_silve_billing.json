@@ -9,16 +9,52 @@
 			"sources": [
 				{
 					"dataset": {
-						"referenceName": "dw_silver_billing_sql",
+						"referenceName": "dw_bronze_billing_sql",
 						"type": "DatasetReference"
 					},
 					"name": "source1"
 				}
 			],
-			"sinks": [],
-			"transformations": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_billing_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				}
+			],
 			"scriptLines": [
 				"source(output(",
+				"          billing_id as string,",
+				"          admission_id as string,",
+				"          charge_type as string,",
+				"          amount as string,",
+				"          payment_status as string,",
+				"          payment_date as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT b.*\\nFROM bronze.billing b\\nWHERE TRY_CAST(LTRIM(RTRIM(b.admission_id)) AS INT) IN (\\n    SELECT admission_id \\n    FROM silver.admissions\\n)',",
+				"     format: 'query') ~> source1",
+				"source1 derive(billing_id = toInteger(trim(toString(billing_id))),",
+				"          admission_id = toInteger(trim(toString(admission_id))),",
+				"          charge_type = iif(isNull(charge_type) || trim(toString(charge_type)) == '', 'Other', initCap(trim(toString(charge_type))))) ~> derivedColumn1",
+				"derivedColumn1 derive(amount = toDecimal(coalesce(round(abs(toDouble(regexReplace(trim(toString(amount)), '[^0-9.-]', ''))), 2), 0.00), 12, 2),",
+				"          payment_status = iif(isNull(payment_status) || trim(toString(payment_status)) == '', 'Unknown', initCap(trim(toString(payment_status)))),",
+				"          payment_date = coalesce(toDate(trim(toString(payment_date)), 'yyyy-MM-dd'), toDate(trim(toString(payment_date)), 'MM/dd/yyyy'), toDate(trim(toString(payment_date)), 'MM-dd-yy'), toDate(trim(toString(payment_date)), 'dd-MMM-yyyy', 'en-US'), toDate(trim(toString(payment_date)), 'MMMM dd, yyyy', 'en-US'), toDate('1900-01-01', 'yyyy-MM-dd'))) ~> derivedColumn2",
+				"derivedColumn2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
 				"          billing_id as integer,",
 				"          admission_id as integer,",
 				"          charge_type as string,",
@@ -26,10 +62,22 @@
 				"          payment_status as string,",
 				"          payment_date as date",
 				"     ),",
-				"     allowSchemaDrift: true,",
-				"     validateSchema: false,",
-				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> source1"
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          billing_id,",
+				"          admission_id,",
+				"          charge_type,",
+				"          amount,",
+				"          payment_status,",
+				"          payment_date",
+				"     )) ~> sink1"
 			]
 		}
 	}

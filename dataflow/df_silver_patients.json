@@ -9,16 +9,55 @@
 			"sources": [
 				{
 					"dataset": {
-						"referenceName": "dw_silver_patients_sql",
+						"referenceName": "dw_bronze_patients_sql",
 						"type": "DatasetReference"
 					},
 					"name": "source1"
 				}
 			],
-			"sinks": [],
-			"transformations": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_patients_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				}
+			],
 			"scriptLines": [
 				"source(output(",
+				"          patient_id as string,",
+				"          full_name as string,",
+				"          gender as string,",
+				"          date_of_birth as string,",
+				"          phone as string,",
+				"          email as string,",
+				"          address as string,",
+				"          insurance_provider as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> source1",
+				"source1 derive(patient_id = toInteger(trim(toString(patient_id))),",
+				"          full_name = initCap(trim(regexReplace(replace(toString(full_name), 'Â', ''), '(?i)^((mr|mrs|ms|dr)\\\\.?\\\\s+)|(\\\\s+(dds|md|dvm|phd|jr\\\\.?))$', ''))),",
+				"          gender = iif(startsWith(lower(trim(toString(gender))), 'm'), 'Male', iif(startsWith(lower(trim(toString(gender))), 'f'), 'Female', 'Unknown')),",
+				"          date_of_birth = coalesce(toDate(toString(date_of_birth), 'MMMM dd, yyyy'), toDate(toString(date_of_birth), 'yyyy-MM-dd'), toDate(toString(date_of_birth), 'MM/dd/yyyy'), toDate(toString(date_of_birth), 'dd-MMM-yyyy'), toDate(toString(date_of_birth), 'MM-dd-yy'), toDate('1900-01-01'))) ~> derivedColumn1",
+				"derivedColumn1 derive(phone = iif(isNull(phone) || lower(trim(toString(phone))) == 'unknown' || length(regexReplace(toString(phone), '[^0-9]', '')) < 10, '000-000-0000', regexReplace(right(regexReplace(toString(phone), '[^0-9]', ''), 10), '(\\\\d{3})(\\\\d{3})(\\\\d{4})', '$1-$2-$3')),",
+				"          email = iif(isNull(email) || trim(toString(email)) == '', 'no_email@domain.com', lower(trim(replace(replace(replace(replace(toString(email), ',', '.'), ' at ', '@'), 'gmial.com', 'gmail.com'), '..', '.')))),",
+				"          address = iif(isNull(address) || trim(toString(address)) == '', 'Unknown Address', trim(regexReplace(toString(address), '\\\\s+', ' '))),",
+				"          insurance_provider = case(   isNull(insurance_provider) || trim(toString(insurance_provider)) == '', 'Uninsured',   instr(lower(toString(insurance_provider)), 'cigna') > 0, 'Cigna',   instr(lower(toString(insurance_provider)), 'aetna') > 0, 'Aetna',   instr(lower(toString(insurance_provider)), 'blue') > 0, 'BlueCross',   instr(lower(toString(insurance_provider)), 'medicaid') > 0, 'Medicaid',   instr(lower(toString(insurance_provider)), 'medi') > 0, 'Medicare',   instr(lower(toString(insurance_provider)), 'united') > 0 || lower(trim(toString(insurance_provider))) == 'uhc', 'UnitedHealth',   instr(lower(toString(insurance_provider)), 'self') > 0, 'Self-Pay',   initCap(trim(toString(insurance_provider))) )) ~> derivedColumn2",
+				"derivedColumn2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
 				"          patient_id as integer,",
 				"          full_name as string,",
 				"          gender as string,",
@@ -28,10 +67,24 @@
 				"          address as string,",
 				"          insurance_provider as string",
 				"     ),",
-				"     allowSchemaDrift: true,",
-				"     validateSchema: false,",
-				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> source1"
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          patient_id,",
+				"          full_name,",
+				"          gender,",
+				"          date_of_birth,",
+				"          phone,",
+				"          email,",
+				"          address,",
+				"          insurance_provider",
+				"     )) ~> sink1"
 			]
 		}
 	}

@@ -9,16 +9,57 @@
 			"sources": [
 				{
 					"dataset": {
-						"referenceName": "dw_silver_admissions_sql",
+						"referenceName": "dw_bronze_admissions_sql",
 						"type": "DatasetReference"
 					},
 					"name": "source1"
 				}
 			],
-			"sinks": [],
-			"transformations": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_admissions_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "derivedColumn2"
+				},
+				{
+					"name": "derivedColumn3"
+				}
+			],
 			"scriptLines": [
 				"source(output(",
+				"          admission_id as string,",
+				"          patient_id as string,",
+				"          admission_date as string,",
+				"          discharge_date as string,",
+				"          department as string,",
+				"          attending_doctor_id as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT a.*\\nFROM bronze.admissions a\\nWHERE TRY_CAST(LTRIM(RTRIM(a.patient_id)) AS INT) IN (\\n    SELECT patient_id \\n    FROM silver.patients\\n)',",
+				"     format: 'query') ~> source1",
+				"source1 derive(admission_id = toInteger(trim(toString(admission_id))),",
+				"          patient_id = toInteger(trim(toString(patient_id))),",
+				"          admission_date = coalesce(toDate(trim(toString(admission_date)), 'yyyy-MM-dd'), toDate(trim(toString(admission_date)), 'MM/dd/yyyy'), toDate(trim(toString(admission_date)), 'dd-MMM-yyyy'), toDate(trim(toString(admission_date)), 'MMMM dd, yyyy'), toDate(trim(toString(admission_date)), 'MM-dd-yy'))) ~> derivedColumn1",
+				"derivedColumn1 derive(discharge_date = coalesce(toDate(trim(toString(discharge_date)), 'yyyy-MM-dd'), toDate(trim(toString(discharge_date)), 'MM/dd/yyyy'), toDate(trim(toString(discharge_date)), 'dd-MMM-yyyy'), toDate(trim(toString(discharge_date)), 'MMMM dd, yyyy'), toDate(trim(toString(discharge_date)), 'MM-dd-yy')),",
+				"          department = case(isNull(department) || trim(toString(department)) == '', 'Unknown', instr(lower(toString(department)), 'onco') > 0, 'Oncology', instr(lower(toString(department)), 'cardio') > 0, 'Cardiology', instr(lower(toString(department)), 'emerg') > 0 || lower(trim(toString(department))) == 'er', 'Emergency', instr(lower(toString(department)), 'ped') > 0 || instr(lower(toString(department)), 'paed') > 0, 'Pediatrics', instr(lower(toString(department)), 'surg') > 0, 'General Surgery', instr(lower(toString(department)), 'neur') > 0 || instr(lower(toString(department)), 'nuer') > 0, 'Neurology', instr(lower(toString(department)), 'orth') > 0, 'Orthopedics', initCap(trim(toString(department)))),",
+				"          attending_doctor_id = toInteger(trim(toString(attending_doctor_id)))) ~> derivedColumn2",
+				"derivedColumn2 derive(admission_date = toString(     coalesce(         toDate(toString(admission_date), 'yyyy-MM-dd'),         toDate(toString(admission_date), 'MM-dd-yy'),         toDate(toString(admission_date), 'dd-MMM-yyyy'),         toDate(toString(admission_date), 'MMMM dd, yyyy'),         toDate(toString(admission_date), 'MM/dd/yyyy'),         toDate(toString(discharge_date), 'yyyy-MM-dd'),         toDate(toString(discharge_date), 'MM-dd-yy'),         toDate(toString(discharge_date), 'dd-MMM-yyyy'),         toDate(toString(discharge_date), 'MMMM dd, yyyy'),         toDate(toString(discharge_date), 'MM/dd/yyyy'),         toDate('1900-01-01', 'yyyy-MM-dd')     ),     'yyyy-MM-dd' ),",
+				"          discharge_date = toString(     coalesce(         toDate(toString(discharge_date), 'yyyy-MM-dd'),         toDate(toString(discharge_date), 'MM-dd-yy'),         toDate(toString(discharge_date), 'dd-MMM-yyyy'),         toDate(toString(discharge_date), 'MMMM dd, yyyy'),         toDate(toString(discharge_date), 'MM/dd/yyyy'),         toDate(toString(admission_date), 'yyyy-MM-dd'),         toDate(toString(admission_date), 'MM-dd-yy'),         toDate(toString(admission_date), 'dd-MMM-yyyy'),         toDate(toString(admission_date), 'MMMM dd, yyyy'),         toDate(toString(admission_date), 'MM/dd/yyyy'),         toDate('1900-01-01', 'yyyy-MM-dd')     ),     'yyyy-MM-dd' )) ~> derivedColumn3",
+				"derivedColumn3 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
 				"          admission_id as integer,",
 				"          patient_id as integer,",
 				"          admission_date as date,",
@@ -26,10 +67,22 @@
 				"          department as string,",
 				"          attending_doctor_id as integer",
 				"     ),",
-				"     allowSchemaDrift: true,",
-				"     validateSchema: false,",
-				"     isolationLevel: 'READ_UNCOMMITTED',",
-				"     format: 'table') ~> source1"
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          admission_id,",
+				"          patient_id,",
+				"          admission_date,",
+				"          discharge_date,",
+				"          department,",
+				"          attending_doctor_id",
+				"     )) ~> sink1"
 			]
 		}
 	}
